@@ -5,6 +5,7 @@ packages
 *.user
 *.sln.docstates
 .vs/
+.ionide/
 
 # Build results
 x64/

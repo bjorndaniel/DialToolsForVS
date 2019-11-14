@@ -1,34 +1,49 @@
 ﻿using System;
+using System.Collections.Immutable;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using DialToolsForVS.Helpers;
+using DialControllerTools.Helpers;
 using Microsoft.VisualStudio.Threading;
 using ThreadHelper = Microsoft.VisualStudio.Shell.ThreadHelper;
 //Timer idea from https://stackoverflow.com/questions/26020799/enforcing-a-delay-on-textbox-textchanged
-namespace DialToolsForVS
+namespace DialControllerTools
 {
     public partial class CustomOptionsControl : UserControl
     {
         private string _selectedText;
         private Timer _timer;
-        internal CustomOptions CustomOptions;
+        private readonly string commandsString;
+
+        private ImmutableArray<string> commands;
+        private ImmutableArray<string> Commands
+         => commands.IsDefaultOrEmpty
+            ? commands = VsCommands.ParseCommands(commandsString)
+            : commands;
+
+        private CustomOptions customOptions;
+        internal CustomOptions CustomOptions
+        {
+            get => customOptions;
+            set
+            {
+                customOptions = value;
+                AssignedClickLabel.Text = customOptions.ClickAction;
+                AssignedRightLabel.Text = customOptions.RightAction;
+                AssignedLeftLabel.Text = customOptions.LeftAction;
+            }
+        }
 
         public CustomOptionsControl()
         {
             InitializeComponent();
+            CommandsBox.Text = commandsString = VsCommands.ReadCommandsAsString();
+            VsCommands.CheckEmptyEntries(commandsString);
+
             _timer = new Timer();
             _timer.Interval = 300;
             _timer.Tick += Timer_Tick;
-        }
-
-        public void Initialize()
-        {
-            VsCommands.Initialize();
-            CommandsBox.Text = VsCommands.CommandsAsString;
-            AssignedClickLabel.Text = CustomOptions.ClickAction;
-            AssignedRightLabel.Text = CustomOptions.RightAction;
-            AssignedLeftLabel.Text = CustomOptions.LeftAction;
         }
 
         private void AssignClickAction_Click(object sender, EventArgs e)
@@ -67,18 +82,32 @@ namespace DialToolsForVS
 
         private void Timer_Tick(object sender, EventArgs e)
         {
-            var searchText = _timer.Tag?.ToString().ToLower() ?? string.Empty;
-            var results = VsCommands.Commands.Where(_ => _.ToLower().Contains(searchText));
-            CommandsBox.Text = results.Any() ? results.Aggregate((a, b) => $"{a ?? string.Empty}{Environment.NewLine}{b ?? string.Empty}") : string.Empty;
+            var searchText = _timer.Tag?.ToString() ?? string.Empty;
+            var results = Commands.Where(c => c.IndexOf(searchText, StringComparison.InvariantCultureIgnoreCase) > -1);
+            int newLineSymbolsLength = Environment.NewLine.Length;
+            CommandsBox.Text = results.Any()
+                ? results.Aggregate(
+                    new StringBuilder(results.Sum(r => r.Length + newLineSymbolsLength)),
+                    (accum, item) =>
+                    {
+                        accum.Append(item);
+                        accum.Append(Environment.NewLine);
+                        return accum;
+                    },
+                    accum =>
+                    {
+                        accum.Length -= newLineSymbolsLength;
+                        return accum.ToString();
+                    })
+                : string.Empty;
         }
 
         private void CommandsBox_MouseClick(object sender, MouseEventArgs e)
         {
             var current_line = CommandsBox.GetLineFromCharIndex(CommandsBox.SelectionStart);
             _selectedText = CommandsBox.Lines[current_line];
-            var line_length = _selectedText?.Length ?? 0;
-            CommandsBox.SelectionStart = CommandsBox.GetFirstCharIndexOfCurrentLine();
-            CommandsBox.SelectionLength = line_length;
+            CommandsBox.SelectionStart = CommandsBox.GetFirstCharIndexFromLine(current_line);
+            CommandsBox.SelectionLength = _selectedText?.Length ?? 0;
         }
     }
 }

@@ -4,33 +4,19 @@ using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 
-namespace DialToolsForVS.Helpers
+namespace DialControllerTools.Helpers
 {
-    public class VsCommands
+    public static class VsCommands
     {
-        public static void Initialize()
-        {
-            CommandsAsString = ReadCommandsAsString();
-            CheckEmptyEntries(CommandsAsString);
-            commands = CommandsAsString
+        internal static ImmutableArray<string> ParseCommands(string commandsString) =>
+            commandsString
                 .Split(new string[] { Environment.NewLine }, StringSplitOptions.RemoveEmptyEntries)
                 .ToImmutableArray();
-        }
 
-        public static string CommandsAsString { get; private set; }
-
-        private static ImmutableArray<string> commands = new ImmutableArray<string>();
-
-        public static ImmutableArray<string> Commands => commands == ImmutableArray<string>.Empty
-            ? (commands = CommandsAsString
-                .Split(new string[] { Environment.NewLine }, StringSplitOptions.RemoveEmptyEntries)
-                .ToImmutableArray())
-            : commands;
-
-        private static string ReadCommandsAsString()
+        internal static string ReadCommandsAsString()
         {
             var assembly = Assembly.GetExecutingAssembly();
-            var resourceName = "DialToolsForVS.Resources.commands.txt";
+            const string resourceName = "DialControllerTools.Resources.commands.txt";
             var stream = assembly.GetManifestResourceStream(resourceName);
             using (var reader = new StreamReader(stream))
             {
@@ -39,7 +25,7 @@ namespace DialToolsForVS.Helpers
         }
 
         [Conditional("Debug")]
-        private static void CheckEmptyEntries(string commandsAsString)
+        internal static void CheckEmptyEntries(string commandsAsString)
         {
             using (var reader = new StringReader(commandsAsString))
             {
